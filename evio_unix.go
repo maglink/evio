@@ -18,6 +18,7 @@ import (
 
 	reuseport "github.com/kavu/go_reuseport"
 	"github.com/tidwall/evio/internal"
+	"github.com/tidwall/evio/internal/affinity"
 )
 
 type conn struct {
@@ -153,7 +154,7 @@ func serve(events Events, listeners []*listener) error {
 	// start loops in background
 	s.wg.Add(len(s.loops))
 	for _, l := range s.loops {
-		go loopRun(s, l)
+		go loopRun(s, l, len(s.loops) == runtime.NumCPU())
 	}
 	return nil
 }
@@ -214,7 +215,11 @@ func loopNote(s *server, l *loop, note interface{}) error {
 	return err
 }
 
-func loopRun(s *server, l *loop) {
+func loopRun(s *server, l *loop, pin bool) {
+	if pin {
+		affinity.SetProcessor(l.idx)
+	}
+
 	defer func() {
 		//fmt.Println("-- loop stopped --", l.idx)
 		s.signalShutdown()
